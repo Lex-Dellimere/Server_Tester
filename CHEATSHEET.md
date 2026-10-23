@@ -264,7 +264,7 @@ Set these on the server too, or bots on other machines cannot reach it:
 ## 12. Testing the tester
 
 ```sh
-mix test                              # ~220 tests; boots a Reach server inside the test VM
+mix test                              # ~230 tests; boots a Reach server inside the test VM
 ```
 
 The Reach server comes from `../the_reach_backend`, which must be on protocol 2.
@@ -273,3 +273,13 @@ To use another checkout:
 ```sh
 REACH_BACKEND=/path/to/checkout mix test
 ```
+
+That server keeps its war and match history in Postgres, so Postgres must be
+running first. The backend's `docker-compose.yml` starts one that works as it is:
+
+```sh
+cd ../the_reach_backend && docker-compose up -d
+```
+
+The tests make their own database, `reach_stress_test`. For a Postgres
+elsewhere, set `REACH_TEST_DATABASE_URL` (see the README).
