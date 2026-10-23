@@ -1,0 +1,23 @@
+{
+  "description": "Everyone logs in at once (a patch day). 100 logins a second; password hashing is the expensive part, and the server answers 503 busy when it is full, which shows here as failed iterations. How many it takes before that is the number you want.",
+  "target": "http",
+  "url": "http://127.0.0.1:4001",
+  "rate": 100,
+  "max_vus": 400,
+  "ramp": "5s",
+  "duration": "30s",
+  "steps": [
+    {
+      "name": "login",
+      "method": "POST",
+      "path": "/v1/auth/login",
+      "json": {"account": "vigil-{{vu:4}}", "password": "stress"},
+      "expect": {"status": 200}
+    }
+  ],
+  "thresholds": [
+    "iterations.failed:ratio<1%",
+    "http.req:p99<1s",
+    "dropped:ratio<1%"
+  ]
+}

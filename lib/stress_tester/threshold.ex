@@ -142,6 +142,6 @@ defmodule StressTester.Threshold do
   def show(nil, _unit), do: "no data"
   def show(v, :ratio), do: Units.percent(v)
   def show(v, :rate), do: "#{Units.count(v * 1.0)}/s"
-  def show(v, :count), do: Units.count(v)
+  def show(v, :count), do: Units.figure(v)
   def show(v, unit), do: Units.value(v, unit)
 end

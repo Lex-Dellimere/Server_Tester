@@ -67,6 +67,17 @@ defmodule StressTester.PlanTest do
     assert [%{text: "http.req:p99<1s"}] = plan.thresholds
   end
 
+  test "every scenario shipped in scenarios/ is a valid plan" do
+    files = Path.wildcard(Path.join(File.cwd!(), "scenarios/*.json"))
+    assert length(files) >= 7
+
+    for file <- files do
+      assert {:ok, plan} = Plan.from_file(file), "#{Path.basename(file)} does not load"
+      assert plan.load.stages != []
+      assert plan.options[:description], "#{Path.basename(file)} has no description"
+    end
+  end
+
   test "command-line options override the file" do
     path =
       scenario(%{

@@ -1,0 +1,80 @@
+{
+  "description": "The HTTP door as a client uses it after login: who am I, friends, the war map, fronts, the item catalog, a battlefield. 50 players, each pausing 200 ms between rounds. (Stress bots have no inventory until their first lobby hello, so /inventory is not in this mix; run a reach scenario first if you want it.)",
+  "target": "http",
+  "url": "http://127.0.0.1:4001",
+  "vus": 50,
+  "ramp": "5s",
+  "duration": "30s",
+  "think": "200ms",
+  "setup": [
+    {
+      "name": "login",
+      "method": "POST",
+      "path": "/v1/auth/login",
+      "json": {
+        "account": "vigil-{{vu:4}}",
+        "password": "stress"
+      },
+      "expect": {
+        "status": 200
+      },
+      "capture": {
+        "token": "access_token"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "name": "me",
+      "path": "/v1/me",
+      "headers": {
+        "authorization": "Bearer {{token}}"
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "friends",
+      "path": "/v1/characters/vigil-{{vu:4}}/friends",
+      "headers": {
+        "authorization": "Bearer {{token}}"
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "war",
+      "path": "/v1/war",
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "fronts",
+      "path": "/v1/fronts",
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "catalog",
+      "path": "/v1/catalog",
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "world",
+      "path": "/v1/worlds/crystal-gate",
+      "expect": {
+        "status": 200
+      }
+    }
+  ],
+  "thresholds": [
+    "iterations.failed:ratio<1%",
+    "http.req:p99<100ms"
+  ]
+}

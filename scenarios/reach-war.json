@@ -1,0 +1,16 @@
+{
+  "description": "Ten full battles at once (r1 to r10), 1,000 players. Run the bots on a different machine from the server (--agents) or the box, not the server, becomes the limit. Set REACH_UDP_RECEIVERS on the server first.",
+  "target": "reach",
+  "vus": 1000,
+  "per_place": 100,
+  "ramp": "60s",
+  "duration": "2m",
+  "thresholds": [
+    "vu.connect_failed:count==0",
+    "vu.lost:count==0",
+    "reach.decode_error:count==0",
+    "reach.snapshot_loss<2%",
+    "reach.rtt:p99<150ms",
+    "server.reach_tick_ms:p99<=33ms"
+  ]
+}

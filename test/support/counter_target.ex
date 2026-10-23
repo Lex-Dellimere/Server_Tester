@@ -14,7 +14,8 @@ defmodule StressTester.Test.Counter do
        fail_connect: opts[:fail_connect],
        fail_every: opts[:fail_every],
        crash_at: opts[:crash_at],
-       stop_at: opts[:stop_at]
+       stop_at: opts[:stop_at],
+       capacity: opts[:capacity]
      }}
   end
 
@@ -23,6 +24,7 @@ defmodule StressTester.Test.Counter do
 
   @impl true
   def connect(%{fail_connect: n}, vu) when is_integer(n) and vu <= n, do: {:error, :refused}
+  def connect(%{capacity: cap}, vu) when is_integer(cap) and vu > cap, do: {:error, :full}
   def connect(shared, vu), do: {:ok, %{shared: shared, vu: vu, n: 0, pokes: 0}}
 
   @impl true

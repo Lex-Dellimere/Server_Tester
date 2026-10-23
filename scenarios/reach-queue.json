@@ -1,0 +1,15 @@
+{
+  "description": "Let the matchmaker place 400 players: it should keep sides even and open new regions when one fills.",
+  "target": "reach",
+  "mode": "queue",
+  "planet": "crystal-gate",
+  "vus": 400,
+  "ramp": "30s",
+  "duration": "90s",
+  "thresholds": [
+    "vu.connect_failed:count==0",
+    "vu.lost:count==0",
+    "reach.decode_error:count==0",
+    "reach.snapshot_loss<2%"
+  ]
+}

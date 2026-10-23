@@ -16,7 +16,7 @@ defmodule StressTester.CLI do
   Exit status: 0 passed, 1 a check or threshold failed, 2 the run could not start.
   """
 
-  alias StressTester.{Agent, Plan, Target, Units}
+  alias StressTester.{Agent, Ladder, Plan, Target, Units}
 
   # an escript does not start its own application
   def main(argv) do
@@ -34,6 +34,9 @@ defmodule StressTester.CLI do
 
       ["agent" | rest] ->
         agent(rest)
+
+      ["ladder" | rest] ->
+        ladder(rest)
 
       [] ->
         go(nil, [])
@@ -84,8 +87,8 @@ defmodule StressTester.CLI do
     opts[:target]
   end
 
-  def parse(args, target) do
-    switches = Plan.switches(target)
+  def parse(args, target, extra \\ []) do
+    switches = Plan.switches(target) ++ extra
 
     case OptionParser.parse(args, strict: switches) do
       {opts, positional, []} ->
@@ -121,6 +124,60 @@ defmodule StressTester.CLI do
     end)
   end
 
+  # run the same test at growing loads and stop where it first fails
+  defp ladder([]), do: fail("usage: stress ladder <target> [address] --steps 25,50,100 [options]")
+
+  defp ladder([name | args]) do
+    extra = [
+      steps: :string,
+      by: :string,
+      keep_going: :boolean,
+      settle: :string,
+      must_pass: :integer
+    ]
+
+    with {:ok, target} <- Target.resolve(name),
+         {:ok, opts} <- parse(args, target, extra),
+         {:ok, steps} <- steps(opts[:steps]),
+         {:ok, by} <- by(opts[:by]),
+         {:ok, settle} <- Units.ms(opts[:settle] || "5s", :s) do
+      need = opts[:must_pass]
+
+      opts =
+        opts
+        |> Map.drop([:steps, :by, :settle, :must_pass])
+        |> Map.merge(%{target: target, settle_ms: settle})
+
+      case Ladder.run(opts, steps, by) do
+        {:ok, rungs} ->
+          IO.puts(Ladder.verdict(rungs))
+
+          # exit 0 if a rung passed (at or above --must-pass, when given): a ladder is meant to end in a failure
+          if Enum.any?(rungs, &(&1.ok and (need == nil or &1.step >= need))), do: 0, else: 1
+
+        {:error, message} ->
+          fail(message)
+      end
+    else
+      {:error, message} -> fail(message)
+    end
+  end
+
+  defp steps(nil), do: {:error, "give the rungs: --steps 25,50,100,200"}
+
+  defp steps(text) do
+    parsed = text |> String.split(",", trim: true) |> Enum.map(&Integer.parse(String.trim(&1)))
+
+    if parsed != [] and Enum.all?(parsed, &match?({n, ""} when n > 0, &1)),
+      do: {:ok, Enum.map(parsed, &elem(&1, 0))},
+      else: {:error, "#{inspect(text)} is not a list of numbers (try 25,50,100)"}
+  end
+
+  defp by(nil), do: {:ok, :vus}
+  defp by(w) when w in ["vus", "users"], do: {:ok, :vus}
+  defp by("rate"), do: {:ok, :rate}
+  defp by(other), do: {:error, "--by #{other} is not users or rate"}
+
   defp finish({:ok, %{ok: true}}), do: 0
   defp finish({:ok, _report}), do: 1
   defp finish({:error, message}), do: fail(message)
@@ -142,6 +199,7 @@ defmodule StressTester.CLI do
     stress <target> [address] [options]     run a load test
     stress <scenario.json> [options]        run a scenario file (options override it)
     stress agent --self NAME@HOST --cookie C   lend this machine to runs started elsewhere
+    stress ladder <target> [address] --steps 25,50,100,200   find where it stops passing
     stress help <target>                    the options a target adds
 
     targets: #{Target.builtin() |> Map.keys() |> Enum.sort() |> Enum.join(", ")}

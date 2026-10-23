@@ -1,0 +1,7 @@
+{
+  "description": "Does everything work at all? Four bots, every check including the rejoin (about 25 s).",
+  "target": "reach",
+  "vus": 4,
+  "duration": "10s",
+  "checks": "all"
+}

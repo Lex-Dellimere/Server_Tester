@@ -45,6 +45,7 @@ defmodule StressTester.Report do
     %{
       ok: Enum.all?(thresholds, & &1["ok"]) and Enum.all?(checks, & &1["ok"]),
       target: describe,
+      description: plan.options[:description],
       load: Load.describe(plan.load),
       seconds: elapsed_ms / 1_000,
       counters: totals.c,
@@ -52,6 +53,7 @@ defmodule StressTester.Report do
       values: derived,
       errors: errors,
       server: server,
+      watch: plan.watch,
       checks: checks,
       thresholds: thresholds,
       tester: %{
@@ -89,6 +91,7 @@ defmodule StressTester.Report do
       "",
       r.target,
       r.load,
+      if(r.description, do: r.description),
       "",
       users(c, r.metrics),
       iterations(c, secs),

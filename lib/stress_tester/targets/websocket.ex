@@ -63,7 +63,7 @@ defmodule StressTester.Targets.WebSocket do
 
   @impl true
   def init(opts) do
-    url = opts[:url] || opts[:address]
+    url = opts[:address] || opts[:url]
 
     with {:ok, origin} <-
            if(url, do: Net.origin(url, "ws"), else: {:error, "give a ws:// or wss:// URL"}),

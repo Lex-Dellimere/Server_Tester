@@ -41,6 +41,26 @@ game tick.
 Use **users** to ask "how does it feel with 1,000 players?" and a **rate** to ask "how many requests a second
 can it take?".
 
+**Where does it stop passing?** The ladder runs the same test at growing loads and stops at the first rung that
+fails:
+
+```sh
+./stress ladder reach 127.0.0.1:4001 --steps 25,50,100,200,400 --duration 20s
+./stress ladder http http://127.0.0.1:4001/v1/meta --by rate --steps 100,500,1000,2000
+```
+
+```text
+users  iter/s   conn fail lost  snapshot   rtt          reach_tick_ms p99   tester cpu verdict
+25     670      0         0     656/s      p99 2.01ms   ≤5.00ms             0.86%      PASS
+100    2,676    0         0     2,624/s    p99 7.01ms   ≤20.1ms             4.94%      PASS
+400    ...                                                                              FAIL
+highest rung that passed: 100
+first failure at 400: vu.connect_failed:count==0 (1,650)
+```
+
+`--keep-going` runs every rung anyway, `--settle 10s` lets the server rest between rungs, `--must-pass 200` makes the
+exit status 1 unless a rung of at least 200 passed (for a build pipeline).
+
 ## Judging: thresholds and checks
 
 A threshold is a rule on one number. If any fails, the run fails.
@@ -173,6 +193,66 @@ here), so `test/stress_tester/reach/wire_test.exs` runs this side against the se
 inputs, delta snapshots (with skipped entities and loss), and the reliable lane through a channel that loses,
 repeats and reorders. If the wire format changes on one side, that test fails first.
 
+## Testing the Reach backend: a runbook
+
+Ready-made runs are in `scenarios/`. Each is a JSON file (`./stress scenarios/NAME.json HOST:PORT`); anything on
+the command line overrides it, so `--vus 50` or `--duration 10s` makes any of them smaller.
+
+**1. Get the server on the protocol-2 code and start it**
+
+```sh
+cd ../the_reach_backend && git pull
+REACH_UDP_RECEIVERS=4 iex -S mix          # dev: port 4001/4002, stress logins on, cheap password hashing
+```
+
+Set `REACH_UDP_RECEIVERS` (the default of 1 was the first thing to break at 1,000 players). For numbers that
+include real password hashing, run it the way production does:
+
+```sh
+MIX_ENV=prod REACH_SECRET=$(openssl rand -hex 32) REACH_BEHIND_PROXY=1 REACH_STRESS=1 \
+  REACH_UDP_RECEIVERS=4 mix run --no-halt
+```
+
+`REACH_STRESS=1` lets the bots in; never on a public box.
+
+**2. Work up, in this order**
+
+| Step | Command | What it tells you |
+| --- | --- | --- |
+| Does anything work? | `./stress scenarios/reach-smoke.json 127.0.0.1:4001` | Every check passes, four bots fight. About 25 s. Fix this before anything else. |
+| The case it is built for | `./stress scenarios/reach-50v50.json 127.0.0.1:4001` | One full battle for a minute. Round trip, snapshot loss, and the server's own tick time against its 33 ms budget. |
+| Where does it stop? | `./stress ladder reach 127.0.0.1:4001 --steps 25,50,100,200,400,800` | The highest player count that still passes. |
+| The HTTP door | `./stress scenarios/reach-api.json 127.0.0.1:4001` | 50 players asking who they are, the war map, the catalog. |
+| A patch day | `./stress scenarios/reach-login-storm.json 127.0.0.1:4001` | 100 logins a second. Run it on the production-style server; dev hashing is ~30 times cheaper. |
+| The matchmaker | `./stress scenarios/reach-queue.json 127.0.0.1:4001` | 400 players placed by the queue instead of sent to one place. |
+| Ten battles | `./stress scenarios/reach-war.json SERVER:4001 --agents BOTBOX@10.0.0.6 --no-local --cookie X` | 1,000 players. See below: needs a second machine. |
+| Overnight | `./stress scenarios/reach-soak.json 127.0.0.1:4001` | Thirty minutes of 100 players with chat; writes `soak-report.json`. |
+
+**3. Reading a Reach run**
+
+Look at these first, in this order:
+
+1. **`checks`**: if any fail, nothing else matters yet.
+2. **`vu.connect_failed` and the `errors` list**: `no_accept` means the server never answered the UDP connect in
+   5 s (overloaded, or the UDP port is unreachable); `login: 503` means password hashing was full.
+3. **`server` → `reach_tick_ms`**: the fight loop's own timing. Its budget is 33 ms; `p99 ≤33ms` is healthy.
+   Anything higher means the game ran in slow motion for someone, even if nothing "failed".
+4. **`reach.rtt`**: what a player feels. Under about 100 ms p99 is fine on one machine.
+5. **`reach.snapshot_loss`**: the server's updates that never arrived. Loss in the other direction (a player's
+   inputs lost) is `reach_udp_in` falling short of the tester's `reach.packets_out`.
+6. **`tester cpu` and `lag`**: if the tester says it was busy, the server's numbers are better than they look.
+
+**4. One machine is a lie.** The server and 1,000 bots share the same cores, so past a few hundred bots
+you are measuring the box, not the server. Put the bots elsewhere: run `./stress agent --self a@10.0.0.6 --cookie X`
+there (copy the single `stress` file; it only needs Erlang), then add `--agents a@10.0.0.6 --no-local --cookie X`.
+Also check the UDP port is open between them, and set `REACH_ADVERTISE_HOST` on the server to its real address,
+or the ticket will tell the bots to send UDP to `127.0.0.1` (the `fight` check says so in words).
+
+**What the first real runs showed** (1,000 bots and the server on one 16-core box, so pessimistic): a single UDP
+receiver lost about half the players' packets in the kernel and left 1,650 of 2,584 connections without an accept;
+four receivers cut that to 264. With production password hashing the login door held about 43 logins a second
+before answering `503 busy`.
+
 ## Writing a target
 
 ```elixir
@@ -200,7 +280,7 @@ vocabulary.
 ## Tests
 
 ```sh
-mix test            # about 200 tests; real HTTP, WebSocket, TLS and UDP; boots a Reach server in the test VM
+mix test            # about 210 tests; real HTTP, WebSocket, TLS and UDP; boots a Reach server in the test VM
 mix test --cover    # fails under 85 %
 ```
 

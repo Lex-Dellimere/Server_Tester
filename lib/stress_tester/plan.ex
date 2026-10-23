@@ -51,7 +51,18 @@ defmodule StressTester.Plan do
   ]
 
   # keys a scenario file may hold that are not command-line switches
-  @structured [:thresholds, :steps, :setup, :headers, :json, :expect, :capture, :body, :silent]
+  @structured [
+    :thresholds,
+    :steps,
+    :setup,
+    :headers,
+    :json,
+    :expect,
+    :capture,
+    :body,
+    :silent,
+    :description
+  ]
 
   def switches(target), do: @common ++ Target.options(target)
 

@@ -68,7 +68,8 @@ defmodule StressTester.Targets.Http do
 
   @impl true
   def init(opts) do
-    base = opts[:url] || opts[:address]
+    # the command line's address wins over a URL written in a scenario file
+    base = opts[:address] || opts[:url]
 
     with {:ok, base_origin} <- if(base, do: Net.origin(base), else: {:error, "give a URL"}),
          {:ok, timeout} <- Units.ms(opts[:timeout] || "10s", :s),
