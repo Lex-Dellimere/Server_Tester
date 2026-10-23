@@ -302,6 +302,18 @@ protocol-2 code (the rebuilt server), so `git pull` there first or point `REACH_
 a checkout that is. The tests include an Erlang node started as a second "machine" (needs `epmd`; they skip
 without it).
 
+Since the Reach server keeps its war and match history in Postgres
+([reach_backend#2](https://github.com/Lex-Dellimere/reach_backend/pull/2)), **Postgres must be running for
+`mix test`**. The backend's `docker-compose.yml` starts one on `localhost:5432` that works as it is:
+
+```sh
+cd ../the_reach_backend && docker-compose up -d
+```
+
+The tests create and migrate their own database, `reach_stress_test`, apart from the backend's dev and test
+databases. For a Postgres elsewhere, set `REACH_TEST_DATABASE_URL=ecto://user:pass@host:5432/reach_stress_test`;
+the user needs the right to create databases.
+
 ## Limits worth knowing
 
 - **Timing depends on the tester having cores to spare.** Read the `tester` line, and when you can, run the bots on a different machine from the server.
