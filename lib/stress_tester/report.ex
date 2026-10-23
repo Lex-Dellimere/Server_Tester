@@ -27,9 +27,9 @@ defmodule StressTester.Report do
     timeline: []
   ]
 
-  def build(plan, collected, checks, derived, describe, server \\ nil) do
+  def build(plan, collected, checks, derived, describe, server \\ nil, ran_ms \\ nil) do
     totals = collected.totals
-    elapsed_ms = Load.duration(plan.load)
+    elapsed_ms = max(ran_ms || Load.duration(plan.load), 1)
     {server_c, server_h} = server_numbers(server)
 
     summary = %{

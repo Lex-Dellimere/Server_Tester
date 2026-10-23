@@ -32,7 +32,9 @@ defmodule StressTester.Collector do
        peak: %{"vus" => 0, "cpu" => 0.0, "run_queue" => 0},
        timeline: [],
        live: Map.get(opts, :live, true),
-       watch: Map.get(opts, :watch, [])
+       watch: Map.get(opts, :watch, []),
+       # a process (the dashboard) that gets each second as it is made
+       listener: Map.get(opts, :listener)
      }}
   end
 
@@ -65,6 +67,7 @@ defmodule StressTester.Collector do
     Process.send_after(self(), :tick, 1_000)
     s = point(s)
     if s.live, do: IO.puts(Report.live(hd(s.timeline), s.watch))
+    if s.listener, do: send(s.listener, {:stress_point, hd(s.timeline)})
     {:noreply, s}
   end
 

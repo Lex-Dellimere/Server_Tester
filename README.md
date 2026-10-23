@@ -17,6 +17,15 @@ No Hex packages. A new target is one Elixir module (see [Writing a target](#writ
 (`iex -S mix`, then `help()`), how to read a report, and how to turn one into an
 HTML page with charts (`html(r)` in the shell, `--html FILE` on the command line).
 
+**Or click:** `mix stress dashboard` (or `dashboard()` in the shell) serves a page at
+<http://127.0.0.1:4100> with:
+- a button for each Reach test, and the player count, steps, length and checks to set
+- live tiles and charts each second: players, round trip, server tick, snapshots,
+  bandwidth in KB/s or Mbps, errors
+- the result in plain words, with the full report one click away
+
+It listens on 127.0.0.1 only, since anyone who can reach it can start load.
+
 ```sh
 mix stress reach 127.0.0.1:4001 --vus 100 --ramp 10s --duration 1m   # from this directory
 mix escript.build                                                     # makes ./stress, which runs anywhere Erlang is installed
@@ -284,7 +293,7 @@ vocabulary.
 ## Tests
 
 ```sh
-mix test            # about 220 tests; real HTTP, WebSocket, TLS and UDP; boots a Reach server in the test VM
+mix test            # about 230 tests; real HTTP, WebSocket, TLS and UDP; boots a Reach server in the test VM
 mix test --cover    # fails under 85 %
 ```
 

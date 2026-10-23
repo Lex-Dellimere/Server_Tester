@@ -34,15 +34,24 @@ defmodule StressTester.Ladder do
       |> Enum.reduce_while([], fn {step, i}, acc ->
         if i > 0, do: Process.sleep(settle)
 
-        case rung(opts, step, by, i == 0) do
-          {:ok, report} ->
-            row = summarize(step, report, by)
-            say.(if i == 0, do: table_head(row, by) <> "\n" <> line(row), else: line(row))
-            acc = [row | acc]
-            if row.ok or keep_going, do: {:cont, acc}, else: {:halt, acc}
+        # the dashboard can ask the ladder to stop between rungs
+        if halted?(opts) do
+          {:halt, acc}
+        else
+          case rung(opts, step, by, i == 0) do
+            {:ok, report} ->
+              row = summarize(step, report, by)
+              say.(if i == 0, do: table_head(row, by) <> "\n" <> line(row), else: line(row))
+              if f = opts[:on_rung], do: f.(row, report)
+              acc = [row | acc]
 
-          {:error, reason} ->
-            {:halt, [%{step: step, error: reason, ok: false} | acc]}
+              if (row.ok or keep_going) and not halted?(opts),
+                do: {:cont, acc},
+                else: {:halt, acc}
+
+            {:error, reason} ->
+              {:halt, [%{step: step, error: reason, ok: false} | acc]}
+          end
         end
       end)
       |> Enum.reverse()
@@ -53,12 +62,15 @@ defmodule StressTester.Ladder do
     end
   end
 
+  defp halted?(opts), do: (f = opts[:halt?]) != nil and f.()
+
   defp rung(opts, step, by, first?) do
     other = if by == :vus, do: :rate, else: :vus
 
     opts
     |> Map.drop([other])
     |> Map.put(by, step_value(step, by))
+    |> Map.drop([:on_rung, :halt?, :settle_ms, :keep_going])
     |> Map.merge(%{silent: true, quiet: true})
     |> Map.put_new(:duration, "20s")
     |> Map.put_new(:ramp, "10s")
