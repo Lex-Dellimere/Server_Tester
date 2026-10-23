@@ -13,7 +13,9 @@ defmodule StressTester.Runner do
     with {:ok, shared} <- init(target, plan.options),
          {:ok, nodes} <- Agent.nodes(plan) do
       describe = Target.describe(target, shared)
+      tell(plan, {:stress_started, %{target: describe, load: Load.describe(plan.load)}})
       checks = checks(target, shared, plan)
+      tell(plan, {:stress_checks, checks})
 
       if checks != [],
         do:
@@ -25,16 +27,33 @@ defmodule StressTester.Runner do
       spec = scrape_spec(plan, shared)
       before = if spec, do: Scrape.fetch(spec)
 
-      {:ok, root} = Collector.start(%{live: plan.live, watch: plan.watch})
+      listener = plan.options[:listener]
+      {:ok, root} = Collector.start(%{live: plan.live, watch: plan.watch, listener: listener})
+      started = System.monotonic_time(:millisecond)
       generators = start(plan, shared, nodes, root)
+      tell(plan, {:stress_generators, Enum.map(generators, &elem(&1, 0))})
+      watcher = if spec && listener, do: watch_server(spec, listener, started)
       lost = await(generators, Load.duration(plan.load) + plan.load.grace_ms + 120_000)
+      # linked so it dies with a crashed run; unlinked first so stopping it does not stop us
+      if watcher do
+        Process.unlink(watcher)
+        Process.exit(watcher, :kill)
+      end
+
+      # a run stopped early is judged on the time it ran
+      ran = min(Load.duration(plan.load), System.monotonic_time(:millisecond) - started)
       after_ = if spec, do: Scrape.fetch(spec)
       collected = Collector.finish(root)
-      server = server_view(spec, before, after_, Load.duration(plan.load) / 1_000)
+      server = server_view(spec, before, after_, ran / 1_000)
       collected = %{collected | totals: lost_machines(collected.totals, lost)}
 
       derived = Target.derive(target, collected.totals.c, shared)
-      report = plan |> Report.build(collected, checks, derived, describe, server) |> History.add()
+
+      report =
+        plan
+        |> Report.build(collected, checks, derived, describe, server, ran)
+        |> History.add()
+
       if plan.print, do: IO.puts(Report.text(report))
       if plan.out, do: File.write!(plan.out, Report.json(report))
       if path = plan.options[:html], do: Html.write(report, path)
@@ -181,6 +200,56 @@ defmodule StressTester.Runner do
       key = {"machine", "#{node}: #{StressTester.Metrics.reason(reason)}"}
       %{t | e: Map.update(t.e, key, 1, &(&1 + 1)), c: Map.update(t.c, "errors", 1, &(&1 + 1))}
     end)
+  end
+
+  defp tell(plan, message) do
+    if pid = plan.options[:listener], do: send(pid, message)
+    :ok
+  end
+
+  # the server's /metrics every two seconds while the load runs, as numbers for that interval
+  defp watch_server(spec, listener, started) do
+    spawn_link(fn -> watch_loop(spec, listener, started, nil) end)
+  end
+
+  defp watch_loop(spec, listener, started, prev) do
+    now = System.monotonic_time(:millisecond)
+
+    prev =
+      case Scrape.fetch(spec) do
+        {:ok, page} ->
+          if prev do
+            {at, last} = prev
+            secs = max((now - at) / 1_000, 0.001)
+
+            send(
+              listener,
+              {:stress_server, server_sample(Scrape.diff(last, page, secs), page, now - started)}
+            )
+          end
+
+          {now, page}
+
+        {:error, _} ->
+          prev
+      end
+
+    Process.sleep(2_000)
+    watch_loop(spec, listener, started, prev)
+  end
+
+  defp server_sample(diff, page, ms) do
+    %{
+      "t" => round(ms / 1_000),
+      "histograms" =>
+        Map.new(diff.histograms, fn {name, h} ->
+          ps = StressTester.Histogram.percentiles(h, [50, 99])
+          {name, %{"p50" => ps[50], "p99" => ps[99], "count" => h.count, "unit" => h.unit}}
+        end),
+      # how fast each counter grew in the interval
+      "rates" => Map.new(diff.series, fn s -> {s.name, s.delta / max(diff.seconds, 0.001)} end),
+      "values" => Map.reject(page, fn {k, _} -> String.contains?(k, "{") end)
+    }
   end
 
   defp say(%{print: false}, _text), do: :ok

@@ -30,7 +30,49 @@ The server's own shell, while a test runs:
 | `Reach.match("crystal-gate/r1")` | one fight in detail |
 | `curl -s localhost:4001/metrics` | tick times, packets in, drops (what the tester scrapes) |
 
-## 2. Open the tester shell
+## 2. The quick way: the dashboard
+
+Buttons and live charts in your browser. In this folder, either:
+
+```sh
+iex -S mix            # then dashboard()
+mix stress dashboard  # or ./stress dashboard
+```
+
+Then open <http://127.0.0.1:4100>. It listens on this machine only.
+
+| On the left | What it does |
+| --- | --- |
+| Server | the Reach server's address; the dot turns green when it answers |
+| Test | **Battle** (bots log in and fight), **Find the limit** (a battle at growing player counts, stopping at the first that fails), **Matchmaker** (bots go through the queue), **Checks only** (correctness tests, no load), **HTTP API**, **Login rush** (logins per second), **Scenario file** (anything in `scenarios/`) |
+| Players | the slider, or type any number |
+| Steps | for Find the limit: `100, 200, 400, 700, 1000` |
+| Checks | the usual ones, all, none, or tick the ones you want |
+| Run / Stop | Stop ends the run early; it is judged on the time it ran |
+
+While it runs, the tiles and charts move every second:
+- Players connected
+- Round trip time
+- Server tick time (the 33 ms budget is drawn on the chart)
+- Snapshots received per second
+- Bandwidth, both ways (**KB/s** or **Mbps**: the switch at the top right)
+- Bot inputs, HTTP requests and response times, time to join
+- Errors per second
+- The tester's own CPU
+
+When it ends you get:
+- the verdict
+- each rule it was judged on, in plain words
+- every value and timing
+- **Full report**, the same page as `html(r)`
+
+Past runs are listed on the left. Started from `iex -S mix`, the dashboard's runs
+are also in the shell, so `last()` and `compare(run(1), run(2))` work on them.
+
+`dashboard(port: 4101, address: "10.0.0.5:4001")` picks another port or
+server.
+
+## 3. Open the tester shell
 
 In this folder:
 
@@ -41,7 +83,7 @@ iex -S mix
 `help()` prints the commands. They come from `StressTester.Shell`, which `.iex.exs`
 imports for you.
 
-## 3. Run something
+## 4. Run something
 
 | You want to know | Type |
 | --- | --- |
@@ -88,7 +130,7 @@ reach(vus: 100, duration: "1m",
 
 `threshold: ["none"]` drops the defaults. A bare number after a time is milliseconds.
 
-## 4. Read the result
+## 5. Read the result
 
 | | |
 | --- | --- |
@@ -106,7 +148,7 @@ reach(vus: 100, duration: "1m",
 | `timeline(r, "reach.rtt")` | `[{second, p99}, …]`; a counter gives its count per second |
 | `compare(run(1), run(2))` | two runs side by side, with the change |
 
-## 5. See it as a page, keep it
+## 6. See it as a page, keep it
 
 | | |
 | --- | --- |
@@ -119,7 +161,7 @@ reach(vus: 100, duration: "1m",
 
 The page draws charts for runs of 2 seconds or more.
 
-## 6. What healthy looks like (Reach)
+## 7. What healthy looks like (Reach)
 
 Check these first, in this order:
 
@@ -134,14 +176,22 @@ Check these first, in this order:
 | `reach.rtt` p99 | under 100 ms on one machine | measured in whole ms; `0µs` means under 1 ms |
 | `tester` line | cpu under 90 %, small lag | the tester was the bottleneck, not the server |
 
-Test results from this machine, with the server and the bots sharing 16 cores:
+Test results from this machine, with the server and the bots sharing 16 cores.
+Players spread over battles of up to 100 each:
 - 400 players: tick p99 ≤ 10 ms.
 - 700 players: still passing.
 - 1,000 players: the server fell behind (snapshot ratio 73 %).
 
-For the server's real limit, run the bots from another machine (section 9).
+Everyone in one battle (server started with `REACH_MATCH_CAP=2000`):
+- 400 players: passing.
+- 700 players: failing (snapshot ratio 47 %).
 
-## 7. When something fails
+A single battle costs more per player as it grows, because each player's view
+is worked out against every other player.
+
+For the server's real limit, run the bots from another machine (section 10).
+
+## 8. When something fails
 
 | You see | It means |
 | --- | --- |
@@ -151,10 +201,10 @@ For the server's real limit, run the bots from another machine (section 9).
 | `connect: no_accept` | the UDP connect got no answer in 5 s: port blocked, server overloaded, or the kernel buffer (section 1) |
 | check `fight`: "the ticket says to send UDP to 127.0.0.1" | set `REACH_ADVERTISE_HOST` on the server, or pass `udp_host:` |
 | `server … unavailable` | `/metrics` only answers localhost; pass `metrics_token:` (the server's `REACH_METRICS_TOKEN`) |
-| "the tester itself was busy" | spread the bots out (section 9); the server may be better than the numbers |
+| "the tester itself was busy" | spread the bots out (section 10); the server may be better than the numbers |
 | a crash in the errors list | a bug in the tester: the line it came from is in the reason |
 
-## 8. The same without IEx
+## 9. The same without IEx
 
 ```sh
 mix escript.build                     # once: makes ./stress (needs only Erlang to run)
@@ -170,7 +220,7 @@ mix escript.build                     # once: makes ./stress (needs only Erlang 
 Exit status 0 means passed, 1 failed, and 2 could not start, so it works in a build
 pipeline. `--out run.json` also writes JSON.
 
-## 9. More than one machine
+## 10. More than one machine
 
 On each extra machine (copy `./stress` there; it needs Erlang):
 
@@ -188,7 +238,7 @@ Set these on the server too, or bots on other machines cannot reach it:
 - `REACH_ADVERTISE_HOST` to its real address
 - an open UDP port
 
-## 10. Options
+## 11. Options
 
 | Load | |
 | --- | --- |
@@ -211,7 +261,7 @@ Set these on the server too, or bots on other machines cannot reach it:
 | `metrics_token:` | for the server's `/metrics` from another machine |
 | `scrape:` | `"off"`, or another metrics URL |
 
-## 11. Testing the tester
+## 12. Testing the tester
 
 ```sh
 mix test                              # ~220 tests; boots a Reach server inside the test VM

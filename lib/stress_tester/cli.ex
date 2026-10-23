@@ -38,6 +38,9 @@ defmodule StressTester.CLI do
       ["ladder" | rest] ->
         ladder(rest)
 
+      ["dashboard" | rest] ->
+        dashboard(rest)
+
       [] ->
         go(nil, [])
 
@@ -124,6 +127,24 @@ defmodule StressTester.CLI do
     end)
   end
 
+  # the page with buttons and live charts; runs until stopped with Ctrl-C
+  defp dashboard(args) do
+    case OptionParser.parse(args, strict: [port: :integer, address: :string]) do
+      {opts, [], []} ->
+        case StressTester.Dashboard.start(opts) do
+          {:ok, _pid, url} ->
+            IO.puts("dashboard at #{url}  (Ctrl-C twice to stop)")
+            Process.sleep(:infinity)
+
+          {:error, message} ->
+            fail(message)
+        end
+
+      _ ->
+        fail("usage: stress dashboard [--port 4100] [--address HOST:PORT]")
+    end
+  end
+
   # run the same test at growing loads and stop where it first fails
   defp ladder([]), do: fail("usage: stress ladder <target> [address] --steps 25,50,100 [options]")
 
@@ -200,6 +221,7 @@ defmodule StressTester.CLI do
     stress <scenario.json> [options]        run a scenario file (options override it)
     stress agent --self NAME@HOST --cookie C   lend this machine to runs started elsewhere
     stress ladder <target> [address] --steps 25,50,100,200   find where it stops passing
+    stress dashboard [--port 4100]          buttons and live charts in your browser
     stress help <target>                    the options a target adds
 
     targets: #{Target.builtin() |> Map.keys() |> Enum.sort() |> Enum.join(", ")}

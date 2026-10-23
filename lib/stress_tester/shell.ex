@@ -100,6 +100,22 @@ defmodule StressTester.Shell do
     error
   end
 
+  @doc """
+  The dashboard: run tests with buttons and watch them live in your browser.
+  `dashboard()` or `dashboard(port: 4101, address: "10.0.0.5:4001")`.
+  """
+  def dashboard(opts \\ []) do
+    case StressTester.Dashboard.start(opts) do
+      {:ok, _pid, url} ->
+        IO.puts("dashboard at #{url}  (open it in your browser)")
+        url
+
+      {:error, message} ->
+        IO.puts("could not start the dashboard: #{message}")
+        {:error, message}
+    end
+  end
+
   # -- reading
 
   @doc "Every run this session: number, verdict, what and how hard."
@@ -269,6 +285,8 @@ defmodule StressTester.Shell do
 
   def help do
     IO.puts("""
+    dashboard()   buttons and live charts in your browser, at http://127.0.0.1:4100
+
     run                                            read
       reach(vus: 100, duration: "30s")               last()            the newest report
       reach("10.0.0.5:4001", vus: 50)                runs()            every run this session

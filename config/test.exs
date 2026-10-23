@@ -25,3 +25,19 @@ config :the_reach_backend,
   regions: ["r1", "r2", "r3", "r4"],
   slot_max: 10_000,
   server_cap: 10_000
+
+# its database: the docker-compose Postgres, a database of the tester's own
+config :the_reach_backend,
+  migrate_on_boot: true,
+  ecto_repos: [Reach.Repo]
+
+config :the_reach_backend, Reach.Repo,
+  url:
+    System.get_env(
+      "REACH_TEST_DATABASE_URL",
+      "ecto://postgres:postgres@localhost:5432/reach_stress_test"
+    ),
+  pool_size: 10
+
+config :postgrex, :json_library, JSON
+config :ecto, :json_library, JSON

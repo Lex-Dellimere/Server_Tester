@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reach Load Tests</title>
+<style>
+:root{--bg:#f6f6f3;--fg:#1c1d1f;--muted:#6a6e75;--card:#fff;--line:#e2e2dd;--accent:#2f6fde;--accent2:#d9822b;--accent3:#7a5af5;--ok:#1f8a4c;--bad:#c4372f;--warn:#b7791f;--input:#fff;--grid:#ececE7}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121315;--fg:#e9e9e7;--muted:#9b9fa6;--card:#1b1d20;--line:#2b2e33;--accent:#6ea0ff;--accent2:#f0a35e;--accent3:#a993ff;--ok:#4cc27e;--bad:#ff6b61;--warn:#e8b34b;--input:#15171a;--grid:#24272b}}
+:root[data-theme="dark"]{--bg:#121315;--fg:#e9e9e7;--muted:#9b9fa6;--card:#1b1d20;--line:#2b2e33;--accent:#6ea0ff;--accent2:#f0a35e;--accent3:#a993ff;--ok:#4cc27e;--bad:#ff6b61;--warn:#e8b34b;--input:#15171a;--grid:#24272b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:2}
+header h1{font-size:16px;margin:0 8px 0 0}
+.addr{display:flex;align-items:center;gap:6px}
+.addr input{width:190px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted);display:inline-block}
+.dot.up{background:var(--ok)}.dot.down{background:var(--bad)}
+.pill{padding:3px 10px;border-radius:999px;font-weight:600;font-size:12px;background:var(--line);color:var(--fg)}
+.pill.running{background:var(--accent);color:#fff}.pill.stopping{background:var(--warn);color:#fff}
+.spacer{flex:1}
+.layout{display:grid;grid-template-columns:300px 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+aside .card+.card{margin-top:12px}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input,select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--input);color:var(--fg);font:inherit}
+input[type=range]{padding:0}
+input[type=checkbox],input[type=radio]{width:auto;margin:0 6px 0 0}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.about{color:var(--muted);font-size:13px;margin:6px 0 0}
+.buttons{display:flex;gap:8px;margin-top:14px}
+button{padding:9px 14px;border-radius:7px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;font-weight:600;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;flex:1}
+button.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;flex:1;font-weight:500;padding:6px}
+.seg button.on{background:var(--accent);color:#fff}
+.checklist{max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-top:6px}
+.checklist label{display:flex;align-items:center;color:var(--fg);font-size:13px;margin:3px 0}
+.choices label{display:inline-flex;align-items:center;color:var(--fg);font-size:13px;margin:4px 12px 0 0}
+.hidden{display:none!important}
+.error{color:var(--bad);font-size:13px;margin-top:8px;min-height:1em}
+.runs{list-style:none;margin:0;padding:0;max-height:300px;overflow:auto}
+.runs li{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.runs li:last-child{border-bottom:0}
+.runs a{color:var(--accent);text-decoration:none}
+.tag{font-weight:700;font-size:11px;padding:1px 6px;border-radius:4px;color:#fff}
+.tag.pass{background:var(--ok)}.tag.fail{background:var(--bad)}
+.banner{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.banner .big{font-size:20px;font-weight:700}
+.verdict{font-weight:800;font-size:18px;padding:8px 14px;border-radius:8px;color:#fff}
+.verdict.pass{background:var(--ok)}.verdict.fail{background:var(--bad)}.verdict.run{background:var(--accent)}.verdict.idle{background:var(--muted)}
+.progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:10px}
+.progress div{height:100%;width:0;background:var(--accent);transition:width .5s}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .s{font-size:12px;color:var(--muted)}
+.charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-top:14px}
+@media (max-width:500px){.charts{grid-template-columns:1fr}}
+.chart h3{font-size:13px;margin:0 0 2px;font-weight:600}
+.chart .sub{font-size:12px;color:var(--muted);margin-bottom:4px}
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+svg .grid{stroke:var(--grid)} svg .axis{fill:var(--muted);font-size:10px} svg .budget{stroke:var(--bad);stroke-dasharray:4 3}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:22px 0 8px}
+table{width:100%;border-collapse:collapse}
+.tablewrap{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;font-size:13px}
+tr:last-child td{border-bottom:0}
+th{color:var(--muted);font-weight:500;font-size:12px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}
+.empty{color:var(--muted);padding:30px;text-align:center}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+a.report{display:inline-block;margin-top:10px;color:var(--accent);font-weight:600;text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>The Reach · load tests</h1>
+  <div class="addr">
+    <span class="dot" id="healthDot" title="is the server up?"></span>
+    <label for="address" class="hidden">Server address</label>
+    <input id="address" value="127.0.0.1:4001" aria-label="Server address" spellcheck="false">
+    <span id="healthText" class="note" style="margin:0"></span>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg" role="group" aria-label="Bandwidth unit">
+    <button id="unitKB" class="on" type="button">KB/s</button>
+    <button id="unitMb" type="button">Mbps</button>
+  </div>
+  <span class="pill" id="statusPill">idle</span>
+</header>
+
+<div class="layout">
+<aside>
+  <div class="card">
+    <label for="test">Test</label>
+    <select id="test"></select>
+    <p class="about" id="about"></p>
+
+    <div data-field="players">
+      <label for="players">Players</label>
+      <div class="row"><input id="players" type="number" min="1" max="20000" value="100"><input id="playersRange" type="range" min="1" max="2000" value="100" aria-label="Players"></div>
+    </div>
+    <div data-field="steps">
+      <label for="steps">Player counts to try, in order</label>
+      <input id="steps" value="50, 100, 200, 400, 700">
+    </div>
+    <div data-field="rate">
+      <label for="rate">Logins a second</label>
+      <input id="rate" type="number" min="1" value="50">
+    </div>
+    <div class="row">
+      <div data-field="duration"><label for="duration">Hold for (seconds)</label><input id="duration" type="number" min="1" value="30"></div>
+      <div data-field="ramp"><label for="ramp">Ramp up (seconds)</label><input id="ramp" type="number" min="0" value="10"></div>
+    </div>
+    <div class="row">
+      <div data-field="per_place"><label for="per_place">Players per battle</label><input id="per_place" type="number" min="2" value="100"></div>
+      <div data-field="chat"><label for="chat">Bots chat every (s, 0 off)</label><input id="chat" type="number" min="0" value="0"></div>
+    </div>
+    <div data-field="scenario">
+      <label for="scenario">Scenario</label>
+      <select id="scenario"></select>
+    </div>
+    <div data-field="checks">
+      <label>Checks before the load</label>
+      <div class="choices" id="checkMode">
+        <label><input type="radio" name="checkMode" value="default" checked>usual</label>
+        <label><input type="radio" name="checkMode" value="all">all</label>
+        <label><input type="radio" name="checkMode" value="none">none</label>
+        <label><input type="radio" name="checkMode" value="pick">choose</label>
+      </div>
+      <div class="checklist hidden" id="checkList"></div>
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="runBtn" type="button">Run</button>
+      <button class="danger" id="stopBtn" type="button" disabled>Stop</button>
+    </div>
+    <div class="error" id="formError" role="alert"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Past runs</h2>
+    <ul class="runs" id="runs"><li class="note">none yet</li></ul>
+  </div>
+</aside>
+
+<main>
+  <div class="card">
+    <div class="banner">
+      <span class="verdict idle" id="verdict">READY</span>
+      <div>
+        <div class="big" id="headline">Pick a test and press Run</div>
+        <div class="note" id="subline" style="margin:0">Numbers and charts move every second while a test runs.</div>
+      </div>
+    </div>
+    <div class="progress"><div id="progress"></div></div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+  <div class="charts" id="charts"></div>
+
+  <section id="checksSection" class="hidden">
+    <h2>Checks</h2>
+    <div class="tablewrap"><table><thead><tr><th></th><th>check</th><th>detail</th></tr></thead><tbody id="checksBody"></tbody></table></div>
+  </section>
+
+  <section id="ladderSection" class="hidden">
+    <h2>Find the limit</h2>
+    <div class="tablewrap"><table><thead><tr><th class="num">players</th><th class="num">actions/s</th><th class="num">failed to join</th><th>verdict</th><th>why</th></tr></thead><tbody id="ladderBody"></tbody></table></div>
+  </section>
+
+  <section id="resultSection" class="hidden">
+    <h2>Result</h2>
+    <div class="tablewrap"><table><thead><tr><th></th><th>what had to hold</th><th class="num">actual</th></tr></thead><tbody id="rulesBody"></tbody></table></div>
+    <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>worked out at the end</th><th class="num"></th></tr></thead><tbody id="valuesBody"></tbody></table></div>
+    <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>timing</th><th class="num">count</th><th class="num">p50</th><th class="num">p99</th><th class="num">max</th></tr></thead><tbody id="timingsBody"></tbody></table></div>
+    <div id="errorsWrap" class="tablewrap hidden" style="margin-top:10px"><table><thead><tr><th class="num">count</th><th>where</th><th>why</th></tr></thead><tbody id="errorsBody"></tbody></table></div>
+    <a class="report hidden" id="reportLink" target="_blank" rel="noopener">Open the full report →</a>
+  </section>
+</main>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("reach-" + k); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
+  set(k, v) { try { localStorage.setItem("reach-" + k, JSON.stringify(v)); } catch (_) {} }
+};
+
+// ---- formatting
+const ms = (us) => us == null ? "–" : us < 1000 ? (us / 1000).toFixed(2) + " ms" : us < 10000 ? (us / 1000).toFixed(1) + " ms" : Math.round(us / 1000) + " ms";
+// the protocol measures a round trip in whole milliseconds, so 0 means under one
+const rtt = (us) => us === 0 ? "< 1 ms" : ms(us);
+const num = (n) => n == null ? "–" : n >= 1000 ? Math.round(n).toLocaleString() : n >= 10 ? n.toFixed(0) : n.toFixed(n === Math.round(n) ? 0 : 1);
+let unit = store.get("unit", "KB");
+const bw = (bytesPerSec) => {
+  if (bytesPerSec == null) return "–";
+  if (unit === "Mb") { const m = bytesPerSec * 8 / 1e6; return (m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)) + " Mbps"; }
+  const k = bytesPerSec / 1024; return (k >= 1000 ? Math.round(k).toLocaleString() : k >= 10 ? k.toFixed(0) : k.toFixed(1)) + " KB/s";
+};
+// an axis label: round numbers stay round
+const bwAxis = (v) => v === 0 ? "0" : (v === Math.round(v) ? Math.round(v).toLocaleString() : v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString()) + (unit === "Mb" ? " Mbps" : " KB/s");
+const bwValue = (b) => unit === "Mb" ? b * 8 / 1e6 : b / 1024;
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+// ---- one line chart, drawn in SVG
+class Chart {
+  constructor(def) {
+    this.def = def; this.data = def.series.map(() => []);
+    this.el = document.createElement("div"); this.el.className = "card chart";
+    this.el.innerHTML = `<h3>${esc(def.title)}</h3><div class="sub">${esc(def.sub || "")}</div><svg viewBox="0 0 520 170" role="img" aria-label="${esc(def.title)}"></svg>` +
+      `<div class="legend">${def.series.map((s, i) => `<span><i style="background:var(${s.color})"></i>${esc(s.name)}</span>`).join("")}</div>`;
+    this.svg = this.el.querySelector("svg");
+  }
+  push(x, values) { values.forEach((v, i) => this.data[i].push([x, v == null ? null : v])); }
+  draw() {
+    const W = 520, H = 170, L = 66, R = 8, T = 10, B = 20;
+    const all = this.data.flat().filter((p) => p[1] != null);
+    const xs = this.data.flat().map((p) => p[0]);
+    const maxX = Math.max(1, ...xs), minX = Math.min(0, ...xs);
+    let maxY = Math.max(this.def.budget || 0, ...all.map((p) => p[1]), 0);
+    maxY = niceMax(maxY || 1);
+    const sx = (x) => L + (x - minX) / Math.max(maxX - minX, 1) * (W - L - R);
+    const sy = (y) => H - B - y / maxY * (H - B - T);
+    let out = "";
+    for (const f of [0, 0.5, 1]) {
+      const y = sy(maxY * f);
+      out += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text class="axis" x="${L - 6}" y="${y}" text-anchor="end" dominant-baseline="middle">${esc(this.def.fmt(maxY * f))}</text>`;
+    }
+    if (this.def.budget) { const y = sy(this.def.budget); out += `<line class="budget" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text class="axis" x="${W - R}" y="${y - 4}" text-anchor="end">budget ${esc(this.def.fmt(this.def.budget))}</text>`; }
+    this.data.forEach((pts, i) => {
+      const segs = []; let cur = [];
+      for (const [x, y] of pts) { if (y == null) { if (cur.length) segs.push(cur); cur = []; } else cur.push(`${sx(x).toFixed(1)},${sy(y).toFixed(1)}`); }
+      if (cur.length) segs.push(cur);
+      for (const s of segs) out += `<polyline fill="none" stroke="var(${this.def.series[i].color})" stroke-width="2" points="${s.join(" ")}"/>`;
+    });
+    out += `<text class="axis" x="${L}" y="${H - 4}">${minX}s</text><text class="axis" x="${W - R}" y="${H - 4}" text-anchor="end">${maxX}s</text>`;
+    this.svg.innerHTML = out;
+  }
+}
+function niceMax(v) { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p; return 10 * p; }
+
+// ---- what a second of the run says
+const sumBy = (counters, suffix) => Object.entries(counters || {}).filter(([k]) => k.endsWith(suffix)).reduce((a, [, v]) => a + v, 0);
+const metric = (p, name) => (p.metrics || {})[name];
+const has = (p, name) => metric(p, name) || (p.counters || {})[name] != null;
+
+// every chart: a name people understand, and when it applies
+const CHARTS = [
+  {id: "players", title: "Players connected", sub: "bots logged in and playing", series: [{name: "connected", color: "--accent"}, {name: "still joining", color: "--accent2"}],
+   fmt: num, when: () => true, values: (p) => [p.vus, p.connecting]},
+  {id: "rtt", title: "Round trip time", sub: "a player's input to the snapshot that answers it", series: [{name: "p50", color: "--accent"}, {name: "p99", color: "--accent2"}],
+   fmt: ms, when: (p) => has(p, "reach.rtt"), values: (p) => [metric(p, "reach.rtt")?.p50, metric(p, "reach.rtt")?.p99]},
+  {id: "tick", title: "Server tick time", sub: "how long one tick of the fight takes on the server (from /metrics)", series: [{name: "p50", color: "--accent"}, {name: "p99", color: "--accent2"}],
+   fmt: ms, budget: 33000, server: true, when: (p, s) => s && s.histograms && s.histograms.reach_tick_ms, values: (p, s) => [s?.histograms?.reach_tick_ms?.p50, s?.histograms?.reach_tick_ms?.p99]},
+  {id: "snapshots", title: "Snapshots received per second", sub: "world updates arriving at all bots together", series: [{name: "snapshots/s", color: "--accent"}],
+   fmt: num, when: (p) => (p.counters || {})["reach.snapshot"] != null, values: (p) => [(p.counters || {})["reach.snapshot"]]},
+  {id: "down", title: "Bandwidth: server → players", sub: "everything the bots received", series: [{name: "down", color: "--accent"}],
+   bw: true, when: (p) => sumBy(p.counters, "bytes_in") > 0, values: (p) => [bwValue(sumBy(p.counters, "bytes_in"))]},
+  {id: "up", title: "Bandwidth: players → server", sub: "everything the bots sent", series: [{name: "up", color: "--accent3"}],
+   bw: true, when: (p) => sumBy(p.counters, "bytes_out") > 0, values: (p) => [bwValue(sumBy(p.counters, "bytes_out"))]},
+  {id: "inputs", title: "Bot inputs per second", sub: "movement and shots sent, one per bot per tick", series: [{name: "inputs/s", color: "--accent"}],
+   fmt: num, when: (p) => (p.counters || {})["reach.input"] != null, values: (p) => [(p.counters || {})["reach.input"]]},
+  {id: "requests", title: "HTTP requests per second", series: [{name: "requests/s", color: "--accent"}],
+   fmt: num, when: (p) => has(p, "http.req"), values: (p) => [metric(p, "http.req")?.count]},
+  {id: "response", title: "HTTP response time", sub: "request sent to the last byte of the answer", series: [{name: "p50", color: "--accent"}, {name: "p99", color: "--accent2"}],
+   fmt: ms, when: (p) => has(p, "http.req"), values: (p) => [metric(p, "http.req")?.p50, metric(p, "http.req")?.p99]},
+  {id: "join", title: "Time to join", sub: "login, lobby, seat and UDP accept, for bots that joined this second", series: [{name: "p50", color: "--accent"}, {name: "p99", color: "--accent2"}],
+   fmt: ms, when: (p) => has(p, "vu.connect"), values: (p) => [metric(p, "vu.connect")?.p50, metric(p, "vu.connect")?.p99]},
+  {id: "errors", title: "Errors per second", sub: "anything that went wrong, all kinds together", series: [{name: "errors/s", color: "--bad"}],
+   fmt: num, when: () => true, values: (p) => [(p.counters || {}).errors || 0]},
+  {id: "cpu", title: "Tester CPU", sub: "if this nears 100 %, the tester is the bottleneck, not the server", series: [{name: "cpu", color: "--accent3"}],
+   fmt: (v) => (v < 10 ? v.toFixed(1) : Math.round(v)) + " %", when: () => true, values: (p) => [(p.cpu || 0) * 100]}
+];
+
+const TILES = [
+  {k: "Players", v: (p) => num(p.vus), s: (p) => p.connecting ? `+${num(p.connecting)} joining` : "connected"},
+  {k: "Round trip p99", v: (p) => rtt(metric(p, "reach.rtt")?.p99 ?? metric(p, "http.req")?.p99), s: (p) => "p50 " + rtt(metric(p, "reach.rtt")?.p50 ?? metric(p, "http.req")?.p50)},
+  {k: "Server tick p99", v: (p, s) => ms(s?.histograms?.reach_tick_ms?.p99), s: () => "budget 33 ms"},
+  {k: "Snapshots / s", v: (p) => num((p.counters || {})["reach.snapshot"]), s: () => "all bots together"},
+  {k: "Server → players", v: (p) => bw(sumBy(p.counters, "bytes_in")), s: (p) => p.vus ? bw(sumBy(p.counters, "bytes_in") / p.vus) + " each" : ""},
+  {k: "Players → server", v: (p) => bw(sumBy(p.counters, "bytes_out")), s: (p) => p.vus ? bw(sumBy(p.counters, "bytes_out") / p.vus) + " each" : ""},
+  {k: "Errors / s", v: (p) => num((p.counters || {}).errors || 0), s: (p) => `${num((p.counters || {})["iterations.failed"] || 0)} failed actions`},
+  {k: "Elapsed", v: () => elapsedText(), s: () => remainingText()}
+];
+
+// ---- page state
+let state = null, charts = {}, points = [], samples = [], lastServer = null, x = 0, status = "idle", started = null, total = null;
+
+function resetRun() {
+  charts = {}; points = []; samples = []; lastServer = null; x = 0;
+  $("charts").innerHTML = ""; $("tiles").innerHTML = "";
+  $("checksSection").classList.add("hidden"); $("ladderSection").classList.add("hidden"); $("resultSection").classList.add("hidden");
+  $("ladderBody").innerHTML = ""; $("progress").style.width = "0";
+}
+
+function addPoint(p) {
+  points.push(p); x += 1;
+  for (const def of CHARTS) {
+    if (!charts[def.id] && def.when(p, lastServer)) {
+      const c = new Chart({...def, fmt: def.bw ? bwAxis : def.fmt});
+      charts[def.id] = c;
+      const after = CHARTS.slice(CHARTS.indexOf(def) + 1).map((d) => charts[d.id]).find(Boolean);
+      $("charts").insertBefore(c.el, after ? after.el : null);
+      // fill the seconds before this chart appeared, so its line starts at the start
+      points.slice(0, -1).forEach((q, i) => c.push(i + 1, def.server ? [null] : def.values(q, null)));
+    }
+    if (charts[def.id] && !def.server) charts[def.id].push(x, def.values(p, lastServer));
+  }
+  if (charts.tick && lastServer) charts.tick.push(x, CHARTS.find((d) => d.id === "tick").values(p, lastServer));
+  Object.values(charts).forEach((c) => c.draw());
+  drawTiles(p);
+  if (total) $("progress").style.width = Math.min(100, x / total * 100) + "%";
+}
+
+function addSample(s) {
+  samples.push(s); lastServer = s;
+  const p = points[points.length - 1];
+  if (p) drawTiles(p);
+}
+
+function drawTiles(p) {
+  $("tiles").innerHTML = TILES.map((t) => `<div class="tile"><div class="k">${esc(t.k)}</div><div class="v">${esc(t.v(p, lastServer))}</div><div class="s">${esc(t.s(p, lastServer) || "")}</div></div>`).join("");
+}
+
+function elapsedText() { return x ? `${x} s` : "–"; }
+function remainingText() { return total ? `of about ${total} s` : ""; }
+
+function setStatus(st) {
+  status = st.status;
+  const pill = $("statusPill"); pill.textContent = status; pill.className = "pill " + status;
+  $("runBtn").disabled = status !== "idle"; $("stopBtn").disabled = status === "idle";
+  if (status !== "idle") {
+    $("verdict").className = "verdict run"; $("verdict").textContent = status === "stopping" ? "STOPPING" : "RUNNING";
+    const cur = st.current || {};
+    $("headline").textContent = testName(cur.test) + (cur.params?.players && cur.test !== "ladder" && cur.test !== "checks" ? ` · ${cur.params.players} players` : "");
+    $("subline").textContent = cur.target ? `${cur.target} · ${cur.load || ""}` : "starting…";
+  }
+}
+
+function testName(id) { return (state?.tests || []).find((t) => t.id === id)?.name || id || ""; }
+
+function showChecks(list) {
+  if (!list || !list.length) return;
+  $("checksSection").classList.remove("hidden");
+  $("checksBody").innerHTML = list.map((c) => `<tr><td class="${c.ok ? "ok" : "bad"}">${c.ok ? "ok" : "FAIL"}</td><td>${esc(c.check)}</td><td>${esc(c.detail)}</td></tr>`).join("");
+}
+
+function addRung(r) {
+  $("ladderSection").classList.remove("hidden");
+  $("ladderBody").insertAdjacentHTML("beforeend", `<tr><td class="num">${num(r.players)}</td><td class="num">${num(r.iterations_per_s)}</td><td class="num">${num(r.connect_failed)}</td><td class="${r.ok ? "ok" : "bad"}">${r.ok ? "PASS" : "FAIL"}</td><td>${esc((r.failing || []).join("; ") || r.error || "")}</td></tr>`);
+}
+
+function showDone(d) {
+  if (d.history) drawRuns(d.history);
+  const v = $("verdict");
+  if (d.error) { v.className = "verdict fail"; v.textContent = "ERROR"; $("headline").textContent = "The test could not run"; $("subline").textContent = d.error; return; }
+  v.className = "verdict " + (d.ok ? "pass" : "fail"); v.textContent = d.ok ? "PASS" : "FAIL";
+  $("progress").style.width = "100%";
+  if (d.ladder) {
+    $("headline").textContent = d.best ? `Highest player count that passed: ${num(d.best)}` : "No step passed";
+    $("subline").textContent = (d.verdict || "").split("\n").slice(1).join(" ") + (d.stopped ? " (stopped early)" : "");
+    return;
+  }
+  $("headline").textContent = (d.ok ? "Passed" : "Failed") + (d.stopped ? " (stopped early)" : "") + ` · ${num(d.seconds)} s`;
+  $("subline").textContent = `${d.target} · ${d.load}`;
+  showChecks(d.checks);
+  $("resultSection").classList.remove("hidden");
+  const values = Object.entries(d.values || {}).map(([k, v]) => `<tr><td>${esc(label(k))}</td><td class="num">${k.endsWith("_ratio") || k.endsWith("_loss") ? (v * 100).toFixed(2) + " %" : num(v)}</td></tr>`);
+  $("rulesBody").innerHTML = (d.thresholds || []).map((t) => {
+    const r = rule(t.threshold);
+    return `<tr><td class="${t.ok ? "ok" : "bad"}">${t.ok ? "ok" : "FAIL"}</td><td>${esc(r.name)}<div class="note" style="margin:0">must be ${esc(r.need)} · <code>${esc(t.threshold)}</code></div></td><td class="num">${esc(t.shown)}</td></tr>`;
+  }).join("");
+  $("valuesBody").innerHTML = values.join("");
+  const timings = Object.entries(d.metrics || {}).filter(([k]) => !["iteration", "vu.lag"].includes(k)).sort();
+  $("timingsBody").innerHTML = timings.map(([k, m]) => {
+    const f = m.unit === "bytes" ? (b) => b == null ? "–" : (b / 1024).toFixed(1) + " KB" : k === "reach.rtt" ? rtt : ms;
+    return `<tr><td>${esc(label(k))}</td><td class="num">${num(m.count)}</td><td class="num">${f(m.p50)}</td><td class="num">${f(m.p99)}</td><td class="num">${f(m.max)}</td></tr>`;
+  }).join("");
+  const errs = d.errors || [];
+  $("errorsWrap").classList.toggle("hidden", !errs.length);
+  $("errorsBody").innerHTML = errs.map((e) => `<tr><td class="num">${num(e.count)}</td><td>${esc(e.where)}</td><td>${esc(e.reason)}</td></tr>`).join("");
+  const link = $("reportLink"); link.href = d.report || "#"; link.classList.toggle("hidden", !d.report);
+}
+
+// plain names for the tester's metric names
+const LABELS = {
+  "reach.rtt": "Round trip", "reach.login": "Login", "reach.lobby_connect": "Lobby connect", "reach.lobby_rtt": "Lobby ping",
+  "reach.ticket": "Getting a seat", "reach.udp_connect": "UDP connect", "reach.snapshot_bytes": "Snapshot size", "vu.connect": "Time to join",
+  "http.req": "HTTP request", "http.ttfb": "HTTP first byte", "http.connect": "TCP connect", "http.tls": "TLS handshake",
+  "reach.snapshot_ratio": "Snapshots per input (server kept time)", "reach.snapshot_loss": "Snapshots lost", "reach.decode_error_ratio": "Snapshots that could not be read",
+  "reach.correction_ratio": "Inputs the server corrected", "ws.reply": "WebSocket reply", "ws.upgrade": "WebSocket upgrade"
+};
+const label = (k) => LABELS[k] || k;
+
+// a threshold, in words: what is measured, and what it had to be
+const RULES = {
+  "vu.connect_failed": "Bots that failed to join", "vu.lost": "Bots dropped during the test",
+  "reach.snapshot": "Snapshots received", "reach.decode_error": "Snapshots that could not be read",
+  "reach.snapshot_loss": "Snapshots lost on the way", "reach.snapshot_ratio": "Snapshots per input (the server kept time)",
+  "iterations.failed": "Failed actions", "reach.rtt": "Round trip", "server.reach_tick_ms": "Server tick time",
+  "server.reach_udp_drops": "Packets the server dropped", "http.req": "HTTP response time", "dropped": "Actions skipped (no free bot)",
+  "errors": "Errors", "http.status.200": "HTTP 200 answers"
+};
+const STATS = {count: "", ratio: "", rate: " a second", p50: ", median", p90: ", p90", p95: ", p95", p99: ", p99", max: ", worst", min: ", best", mean: ", average"};
+const OPS = {"<": "under", "<=": "at most", ">": "over", ">=": "at least", "==": "exactly", "!=": "not"};
+function rule(text) {
+  const m = /^\s*([^:<>=!]+?)\s*(?::\s*([a-z0-9.]+))?\s*(<=|>=|==|!=|<|>)\s*(.+)$/i.exec(text);
+  if (!m) return {name: text, need: ""};
+  const [, subject, stat, op, value] = m;
+  return {name: (RULES[subject] || label(subject)) + (STATS[stat] ?? (stat ? ", " + stat : "")), need: `${OPS[op]} ${value.trim()}`};
+}
+
+function drawRuns(list) {
+  const items = (list || []).slice().reverse();
+  $("runs").innerHTML = items.length ? items.map((r) => `<li><span class="tag ${r.ok ? "pass" : "fail"}">${r.ok ? "PASS" : "FAIL"}</span><a href="${esc(r.report)}" target="_blank" rel="noopener" title="${esc(r.target + " · " + r.load)}">#${r.id} ${esc(r.label || r.load)}</a><span class="note" style="margin:0 0 0 auto">${esc((r.finished_at || "").slice(11, 16))}</span></li>`).join("") : `<li class="note">none yet</li>`;
+}
+
+// ---- the form
+function fieldsFor(test) { return (state.tests.find((t) => t.id === test) || {fields: []}).fields; }
+
+function showFields() {
+  const test = $("test").value; const fields = fieldsFor(test);
+  document.querySelectorAll("[data-field]").forEach((el) => el.classList.toggle("hidden", !fields.includes(el.dataset.field)));
+  $("about").textContent = (state.tests.find((t) => t.id === test) || {}).about || "";
+  store.set("test", test);
+}
+
+function form() {
+  const mode = document.querySelector('input[name="checkMode"]:checked').value;
+  const picked = [...document.querySelectorAll("#checkList input:checked")].map((i) => i.value);
+  const p = {
+    test: $("test").value, address: $("address").value.trim(),
+    players: +$("players").value, duration: +$("duration").value, ramp: +$("ramp").value,
+    per_place: +$("per_place").value, chat: +$("chat").value, rate: +$("rate").value,
+    steps: $("steps").value, scenario: $("scenario").value,
+    checks: mode === "pick" ? picked : mode
+  };
+  store.set("form", p);
+  return p;
+}
+
+function restoreForm() {
+  const p = store.get("form", null); if (!p) return;
+  for (const k of ["address", "players", "duration", "ramp", "per_place", "chat", "rate", "steps"]) if (p[k] != null && p[k] !== "" && $(k)) $(k).value = p[k];
+  $("playersRange").value = Math.min(+$("players").value, 2000);
+}
+
+async function run() {
+  $("formError").textContent = "";
+  const p = form();
+  const res = await fetch("/api/run", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(p)});
+  const body = await res.json().catch(() => ({}));
+  if (res.status !== 202) { $("formError").textContent = body.error || "could not start"; return; }
+  resetRun();
+  total = p.test === "checks" ? null : p.test === "ladder" ? null : (p.duration || 0) + (p.ramp || 0);
+}
+
+async function stop() { await fetch("/api/stop", {method: "POST"}); }
+
+async function health() {
+  const addr = $("address").value.trim();
+  try {
+    const h = await (await fetch("/api/health?address=" + encodeURIComponent(addr))).json();
+    $("healthDot").className = "dot " + (h.up ? "up" : "down");
+    $("healthText").textContent = h.up ? "server up" : "no server: " + (h.detail || "");
+  } catch (_) { $("healthDot").className = "dot down"; $("healthText").textContent = "dashboard not reachable"; }
+}
+
+function setUnit(u) {
+  unit = u; store.set("unit", u);
+  $("unitKB").classList.toggle("on", u === "KB"); $("unitMb").classList.toggle("on", u === "Mb");
+  // redraw the bandwidth charts in the new unit from the seconds already seen
+  for (const id of ["down", "up"]) {
+    const c = charts[id]; if (!c) continue;
+    const def = CHARTS.find((d) => d.id === id);
+    c.data = [points.map((q, i) => [i + 1, def.values(q)[0]])];
+    c.def.fmt = bwAxis;
+    c.draw();
+  }
+  if (points.length) drawTiles(points[points.length - 1]);
+}
+
+// ---- live
+function listen() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("snapshot", (e) => {
+    const s = JSON.parse(e.data);
+    resetRun(); setStatus(s.status); drawRuns(s.history);
+    const cur = s.status.current;
+    if (cur && cur.params) total = cur.test === "ladder" || cur.test === "checks" ? null : (cur.params.duration || 0) + (cur.params.ramp || 0);
+    (s.samples || []).forEach(addSample);
+    (s.points || []).forEach(addPoint);
+    showChecks(s.checks); (s.rungs || []).forEach(addRung);
+    if (s.status.status === "idle" && s.last) showDone(s.last);
+  });
+  es.addEventListener("status", (e) => setStatus(JSON.parse(e.data)));
+  es.addEventListener("started", (e) => { const d = JSON.parse(e.data); $("subline").textContent = `${d.target} · ${d.load}`; });
+  es.addEventListener("checks", (e) => showChecks(JSON.parse(e.data)));
+  es.addEventListener("point", (e) => addPoint(JSON.parse(e.data)));
+  es.addEventListener("server", (e) => addSample(JSON.parse(e.data)));
+  es.addEventListener("rung", (e) => addRung(JSON.parse(e.data)));
+  es.addEventListener("done", (e) => showDone(JSON.parse(e.data)));
+}
+
+async function init() {
+  state = await (await fetch("/api/state")).json();
+  $("test").innerHTML = state.tests.map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
+  $("scenario").innerHTML = state.scenarios.map((n) => `<option>${esc(n)}</option>`).join("");
+  $("checkList").innerHTML = state.checks.map((c) => `<label><input type="checkbox" value="${esc(c)}">${esc(c)}</label>`).join("");
+  $("address").value = state.address;
+  restoreForm();
+  const t = store.get("test", "battle"); if (state.tests.some((x) => x.id === t)) $("test").value = t;
+  showFields(); drawRuns(state.history); setStatus(state.status); setUnit(unit);
+  $("test").addEventListener("change", showFields);
+  $("players").addEventListener("input", () => { $("playersRange").value = Math.min(+$("players").value || 1, 2000); });
+  $("playersRange").addEventListener("input", () => { $("players").value = $("playersRange").value; });
+  document.querySelectorAll('input[name="checkMode"]').forEach((r) => r.addEventListener("change", () => $("checkList").classList.toggle("hidden", r.value !== "pick" || !r.checked)));
+  $("runBtn").addEventListener("click", run); $("stopBtn").addEventListener("click", stop);
+  $("unitKB").addEventListener("click", () => setUnit("KB")); $("unitMb").addEventListener("click", () => setUnit("Mb"));
+  $("address").addEventListener("change", health);
+  listen(); health(); setInterval(health, 5000);
+}
+init();
+</script>
+</body>
+</html>
