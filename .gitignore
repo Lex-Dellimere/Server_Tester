@@ -24,3 +24,7 @@ stress_tester-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# reports written from the shell
+/reports/
+/runs/

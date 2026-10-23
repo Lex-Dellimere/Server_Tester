@@ -42,6 +42,7 @@ defmodule StressTester.Plan do
     scrape: :string,
     scrape_header: :keep,
     out: :string,
+    html: :string,
     quiet: :boolean,
     agents: :string,
     cookie: :string,

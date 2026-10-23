@@ -45,8 +45,11 @@ defmodule StressTester.Collector do
   @impl true
   def handle_call({:window, data}, _from, s), do: {:reply, :ok, add(s, data)}
 
+  # what came in after the last full second (users leaving, final counts) is a
+  # partial point: in the totals, but not a second like the others
   def handle_call(:finish, _from, s) do
     s = point(s)
+    s = %{s | timeline: [Map.put(hd(s.timeline), "partial", true) | tl(s.timeline)]}
 
     {:stop, :normal,
      %{

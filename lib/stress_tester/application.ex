@@ -5,6 +5,9 @@ defmodule StressTester.Application do
 
   @impl true
   def start(_type, _args) do
-    Supervisor.start_link([], strategy: :one_for_one, name: StressTester.Supervisor)
+    Supervisor.start_link([StressTester.History],
+      strategy: :one_for_one,
+      name: StressTester.Supervisor
+    )
   end
 end

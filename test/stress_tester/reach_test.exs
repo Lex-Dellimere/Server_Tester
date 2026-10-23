@@ -289,4 +289,93 @@ defmodule StressTester.ReachTest do
     {:ok, shared} = Target.init(%{address: address()})
     shared
   end
+
+  describe "from the IEx shell" do
+    import ExUnit.CaptureIO
+    import StressTester.Shell
+
+    test "reach, a ladder, and an HTML page with the server's own numbers" do
+      out =
+        capture_io(fn ->
+          r = reach(address(), vus: 4, duration: "2500ms", checks: "none", quiet: true)
+          send(self(), {:r, r})
+
+          rungs =
+            ladder(:reach, [2, 4],
+              address: address(),
+              duration: "1s",
+              ramp: "0s",
+              checks: "none",
+              settle: "100ms"
+            )
+
+          send(self(), {:rungs, rungs})
+        end)
+
+      assert_received {:r, r}
+      assert r.ok
+      assert inspect(r) =~ "#StressTester.Report<run "
+      assert inspect(r) =~ "PASS"
+      assert out =~ "highest rung that passed: 4"
+      assert_received {:rungs, [%{ok: true}, %{ok: true}]}
+
+      path =
+        Path.join(System.tmp_dir!(), "stress-reach-#{System.unique_integer([:positive])}.html")
+
+      capture_io(fn -> html(r, path) end)
+      page = File.read!(path)
+      File.rm(path)
+      assert page =~ "The server&#39;s own numbers" or page =~ "The server's own numbers"
+      assert page =~ "reach_tick_ms"
+      assert page =~ "reach.rtt p99"
+      assert page =~ "Thresholds and checks"
+    end
+
+    test "a websocket from the shell" do
+      capture_io(fn ->
+        send(
+          self(),
+          {:r,
+           ws("ws://#{address()}/v1/lobby",
+             vus: 1,
+             duration: "500ms",
+             pace: "100ms",
+             quiet: true,
+             threshold: ["none"]
+           )}
+        )
+      end)
+
+      assert_received {:r, %StressTester.Report{} = r}
+      assert r.metrics["ws.upgrade"]["count"] == 1
+    end
+
+    test "a page for a failed run lists what failed and the errors" do
+      {:ok, l} = :gen_tcp.listen(0, [])
+      {:ok, dead} = :inet.port(l)
+      :gen_tcp.close(l)
+
+      capture_io(fn ->
+        send(
+          self(),
+          {:r,
+           reach("127.0.0.1:#{dead}",
+             vus: 1,
+             duration: "2500ms",
+             checks: "none",
+             timeout: "300ms",
+             quiet: true,
+             grace: "1s"
+           )}
+        )
+      end)
+
+      assert_received {:r, r}
+      refute r.ok
+      page = StressTester.Html.render(r)
+      assert page =~ "FAIL"
+      assert page =~ "Errors"
+      assert page =~ "could not be read" or page =~ "connect"
+    end
+  end
 end

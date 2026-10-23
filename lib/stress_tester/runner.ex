@@ -5,7 +5,7 @@ defmodule StressTester.Runner do
   and all at once so they cost the slowest one.
   """
 
-  alias StressTester.{Agent, Collector, Generator, Load, Report, Scrape, Target}
+  alias StressTester.{Agent, Collector, Generator, History, Html, Load, Report, Scrape, Target}
 
   def run(plan) do
     target = plan.target
@@ -34,9 +34,10 @@ defmodule StressTester.Runner do
       collected = %{collected | totals: lost_machines(collected.totals, lost)}
 
       derived = Target.derive(target, collected.totals.c, shared)
-      report = Report.build(plan, collected, checks, derived, describe, server)
+      report = plan |> Report.build(collected, checks, derived, describe, server) |> History.add()
       if plan.print, do: IO.puts(Report.text(report))
       if plan.out, do: File.write!(plan.out, Report.json(report))
+      if path = plan.options[:html], do: Html.write(report, path)
       {:ok, report}
     end
   end

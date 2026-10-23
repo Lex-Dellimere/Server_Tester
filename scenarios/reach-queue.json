@@ -10,6 +10,7 @@
     "vu.connect_failed:count==0",
     "vu.lost:count==0",
     "reach.decode_error:count==0",
-    "reach.snapshot_loss<2%"
+    "reach.snapshot_loss<2%",
+    "reach.snapshot_ratio>90%"
   ]
 }

@@ -13,6 +13,10 @@ No Hex packages. A new target is one Elixir module (see [Writing a target](#writ
 
 ## Run it
 
+**Start with [CHEATSHEET.md](CHEATSHEET.md):** what to run from the IEx shell
+(`iex -S mix`, then `help()`), how to read a report, and how to turn one into an
+HTML page with charts (`html(r)` in the shell, `--html FILE` on the command line).
+
 ```sh
 mix stress reach 127.0.0.1:4001 --vus 100 --ramp 10s --duration 1m   # from this directory
 mix escript.build                                                     # makes ./stress, which runs anywhere Erlang is installed
@@ -280,7 +284,7 @@ vocabulary.
 ## Tests
 
 ```sh
-mix test            # about 210 tests; real HTTP, WebSocket, TLS and UDP; boots a Reach server in the test VM
+mix test            # about 220 tests; real HTTP, WebSocket, TLS and UDP; boots a Reach server in the test VM
 mix test --cover    # fails under 85 %
 ```
 

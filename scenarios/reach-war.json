@@ -10,6 +10,7 @@
     "vu.lost:count==0",
     "reach.decode_error:count==0",
     "reach.snapshot_loss<2%",
+    "reach.snapshot_ratio>90%",
     "reach.rtt:p99<150ms",
     "server.reach_tick_ms:p99<=33ms"
   ]

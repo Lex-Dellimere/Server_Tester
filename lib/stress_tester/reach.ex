@@ -80,6 +80,7 @@ defmodule StressTester.Reach do
         "reach.snapshot:count>0",
         "reach.decode_error:count==0",
         "reach.snapshot_loss<5%",
+        "reach.snapshot_ratio>90%",
         "iterations.failed:ratio<1%"
       ],
       live: ["reach.snapshot", "reach.rtt"]
@@ -166,6 +167,10 @@ defmodule StressTester.Reach do
       snaps + (c["reach.decode_error"] || 0)
     )
     |> put_ratio("reach.correction_ratio", c["reach.correct"] || 0, inputs)
+    # A bot sends an input every tick and the server sends a snapshot every tick, so
+    # the two match while the server keeps time. A server that falls behind makes
+    # fewer snapshots without losing any; this is where that shows.
+    |> put_ratio("reach.snapshot_ratio", snaps, inputs)
     |> put_ratio(
       "reach.snapshot_loss",
       c["reach.snapshot_lost"] || 0,

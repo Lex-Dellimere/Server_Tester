@@ -6,6 +6,27 @@ defmodule StressTester.Report do
 
   alias StressTester.{Histogram, Load, Scrape, Threshold, Units}
 
+  # a struct so IEx prints one line for it, not pages; `show(r)` prints the rest
+  defstruct [
+    :ok,
+    :run,
+    :target,
+    :description,
+    :finished_at,
+    :load,
+    :seconds,
+    :server,
+    :tester,
+    counters: %{},
+    metrics: %{},
+    values: %{},
+    errors: [],
+    watch: [],
+    checks: [],
+    thresholds: [],
+    timeline: []
+  ]
+
   def build(plan, collected, checks, derived, describe, server \\ nil) do
     totals = collected.totals
     elapsed_ms = Load.duration(plan.load)
@@ -42,9 +63,10 @@ defmodule StressTester.Report do
 
     lag = Map.get(totals.h, "vu.lag")
 
-    %{
+    %__MODULE__{
       ok: Enum.all?(thresholds, & &1["ok"]) and Enum.all?(checks, & &1["ok"]),
       target: describe,
+      finished_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601(),
       description: plan.options[:description],
       load: Load.describe(plan.load),
       seconds: elapsed_ms / 1_000,
@@ -75,7 +97,8 @@ defmodule StressTester.Report do
   defp detail({:error, reason}), do: StressTester.Metrics.reason(reason)
   defp detail(other), do: StressTester.Metrics.reason(other)
 
-  def json(report), do: report |> Map.update!(:server, &server_json/1) |> JSON.encode!()
+  def json(report),
+    do: report |> Map.from_struct() |> Map.update!(:server, &server_json/1) |> JSON.encode!()
 
   defp server_json(nil), do: nil
   defp server_json(%{diff: diff, url: url}), do: Map.put(Scrape.json(diff), "url", url)
@@ -308,4 +331,12 @@ defmodule StressTester.Report do
 
   defp rate(nil, _secs), do: "0/s"
   defp rate(v, secs), do: "#{Units.count(v / secs)}/s"
+end
+
+defimpl Inspect, for: StressTester.Report do
+  def inspect(r, _opts) do
+    verdict = if r.ok, do: "PASS", else: "FAIL"
+    run = if r.run, do: "run #{r.run} · ", else: ""
+    "#StressTester.Report<#{run}#{verdict} · #{r.target} · #{r.load} · show(r) prints it all>"
+  end
 end

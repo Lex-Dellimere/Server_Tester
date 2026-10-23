@@ -221,6 +221,7 @@ defmodule StressTester.CLI do
                           --threshold none drops the target's defaults
       --checks LIST       default, all, none, or names
       --out FILE          also write the report as JSON
+      --html FILE         and as an HTML page with charts
       --quiet             no line a second
 
     more machines
