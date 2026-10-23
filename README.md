@@ -11,6 +11,50 @@ requests a second**, and **what counts as passing**; it runs that, and says what
 
 No Hex packages. A new target is one Elixir module (see [Writing a target](#writing-a-target)).
 
+## Quick start: test The Reach on this machine
+
+You need Erlang/OTP 27 with Elixir 1.18 or newer, Docker (for Postgres), and the two projects side by side:
+
+```
+Dumb_Red_Panda/
+  the_reach_backend/   the game server
+  stress_tester/       this
+```
+
+The tester **never starts the server**. You start it, and the tester connects to the address you give it
+(`127.0.0.1:4001` unless you say otherwise), so the server can just as well be on another machine.
+
+**1. Start the server**, in a terminal in `the_reach_backend`:
+
+```sh
+docker-compose up -d     # Postgres on localhost:5432, which the server needs (use sudo if your Docker does)
+mix deps.get             # the first time only
+iex -S mix               # creates and migrates its database, then listens on 4001 (HTTP) and 4002 (UDP)
+```
+
+Dev lets the bots log in (stress logins), so nothing else needs setting.
+
+**2. Run a test**, in a second terminal in `stress_tester`. Pick one way:
+
+```sh
+mix stress dashboard                                     # buttons and live charts at http://127.0.0.1:4100
+iex -S mix                                               # the shell: reach(vus: 50, duration: "30s"), then html(last(), open: true)
+mix stress reach 127.0.0.1:4001 --vus 50 --duration 30s  # one run, the report printed at the end
+```
+
+In the dashboard, the server's address is the box at the top: the dot turns green when the server answers.
+Pick **Battle**, set the players, press **Run**.
+
+**3. Stop**: Ctrl-C twice in each terminal. `docker-compose down` in `the_reach_backend` stops Postgres and keeps
+its data.
+
+Before runs of more than a few hundred bots, raise the kernel's UDP buffer cap (the server warns at boot when
+it is too low):
+
+```sh
+sudo sysctl -w net.core.rmem_max=4194304 net.core.wmem_max=4194304
+```
+
 ## Run it
 
 **Start with [CHEATSHEET.md](CHEATSHEET.md):** what to run from the IEx shell
@@ -215,15 +259,17 @@ the command line overrides it, so `--vus 50` or `--duration 10s` makes any of th
 
 ```sh
 cd ../the_reach_backend && git pull
-REACH_UDP_RECEIVERS=4 iex -S mix          # dev: port 4001/4002, stress logins on, cheap password hashing
+docker-compose up -d                      # Postgres, which the server keeps its war and match history in
+iex -S mix                                # dev: port 4001/4002, stress logins on, cheap password hashing
 ```
 
-Set `REACH_UDP_RECEIVERS` (the default of 1 was the first thing to break at 1,000 players). For numbers that
-include real password hashing, run it the way production does:
+The server picks how many UDP receivers to run from its core count (a single one was the first thing to break
+at 1,000 players); `REACH_UDP_RECEIVERS=8` overrides it. For numbers that include real password hashing, run it
+the way production does:
 
 ```sh
 MIX_ENV=prod REACH_SECRET=$(openssl rand -hex 32) REACH_BEHIND_PROXY=1 REACH_STRESS=1 \
-  REACH_UDP_RECEIVERS=4 mix run --no-halt
+  DATABASE_URL=ecto://postgres:postgres@localhost:5432/reach_dev REACH_MIGRATE=1 mix run --no-halt
 ```
 
 `REACH_STRESS=1` lets the bots in; never on a public box.
